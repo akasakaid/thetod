@@ -57,12 +57,12 @@ class Tethertod:
             re_click = int(res.json().get("remainingClicks"))
             if re_click < 10:
                 break
-            countdown(self.interval)
+            await countdown(self.interval)
 
         return True
 
 
-def countdown(t):
+async def countdown(t):
     for i in range(t, 0, -1):
         minu, sec = divmod(i, 60)
         hour, minu = divmod(minu, 60)
@@ -70,7 +70,7 @@ def countdown(t):
         minu = str(minu).zfill(2)
         hour = str(hour).zfill(2)
         print(f"waiting {hour}:{minu}:{sec} ", flush=True, end="\r")
-        time.sleep(1)
+        await asyncio.sleep(1)
 
 
 async def go(semaphore, query, click_min, click_max, interval):
@@ -112,7 +112,7 @@ async def main():
             for q in datas
         ]
         await asyncio.gather(*tasks)
-        countdown(_countdown)
+        await countdown(_countdown)
 
 
 if __name__ == "__main__":
