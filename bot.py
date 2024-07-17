@@ -38,6 +38,7 @@ class Tethertod:
     async def start(self):
         login_url = "https://tap-tether.org/server/login"
         res = await self.ses.get(login_url)
+        open("http.log", "a", encoding="utf-8").write(f"{res.text}\n")
         if res.status_code != 200:
             return False
         data = res.json().get("userData")
@@ -51,6 +52,7 @@ class Tethertod:
                 click = re_click
             click_url = f"https://tap-tether.org/server/clicks?clicks={click}&lastClickTime={round(time.time())}"
             res = await self.ses.get(click_url)
+            open("http.log", "a", encoding="utf-8").write(f"{res.text}\n")
             if res.status_code != 200:
                 return False
             self.log(f"success sending tap : {click}")
@@ -73,23 +75,12 @@ async def countdown(t):
         await asyncio.sleep(1)
 
 
-async def go(semaphore, query, click_min, click_max, interval):
-    async with semaphore:
-        await Tethertod(
-            query,
-            click_min,
-            click_max,
-            interval,
-        ).start()
-
-
 async def main():
     config = json.loads(open("config.json").read())
     click_min = config["click_range"]["min"]
     click_max = config["click_range"]["max"]
     interval = config["interval_click"]
     _countdown = config["countdown"]
-    datas = open("data.txt").read().splitlines()
     os.system("cls" if os.name == "nt" else "clear")
     print(
         """
@@ -98,17 +89,16 @@ async def main():
     By: @AkasakaID
           """
     )
+    datas = open("data.txt").read().splitlines()
     print(f"total account : {len(datas)}")
     while True:
-        semaphore = asyncio.Semaphore(os.cpu_count() / 2)
         tasks = [
-            go(
-                semaphore,
+            Tethertod(
                 q,
                 click_min,
                 click_max,
                 interval,
-            )
+            ).start()
             for q in datas
         ]
         await asyncio.gather(*tasks)
