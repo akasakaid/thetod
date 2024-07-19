@@ -5,6 +5,7 @@ import json
 import httpx
 import random
 import asyncio
+import argparse
 from urllib.parse import parse_qs, unquote
 
 
@@ -21,7 +22,7 @@ class Tethertod:
             "Authorization": f"tma {query}",
             "Connection": "keep-alive",
             "Host": "tap-tether.org",
-            "Referer": "https://tap-tether.org/",
+            "Referer": "https://tap-tether.org/?tgWebAppStartParam=ZJHQ8GY",
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "same-origin",
@@ -35,12 +36,43 @@ class Tethertod:
     def log(self, msg):
         print(f"[{self.first_name}] {msg}")
 
+    async def http(self, url, data=None):
+        while True:
+            try:
+                if data is None:
+                    res = await self.ses.get(url)
+                    open("http.log", "a", encoding="utf-8").write(f"{res.text}\n")
+                    return res
+
+                if data == "":
+                    res = await self.ses.post(url)
+                    open("http.log", "a", encoding="utf-8").write(f"{res.text}\n")
+
+                res = await self.ses.post(url, data=data)
+                open("http.log", "a", encoding="utf-8").write(f"{res.text}\n")
+                return res
+            except (httpx.HTTPError, httpx.ConnectError):
+                self.log(f"connection error / connection failed")
+                await asyncio.sleep(1)
+                continue
+            except httpx.RemoteProtocolError:
+                self.log(f"server not sending response !")
+                await asyncio.sleep(1)
+                continue
+
+    # async def withdraw(self):
+    #     data = "amount=1000000&address=&chain=ton"
+
     async def start(self):
         login_url = "https://tap-tether.org/server/login"
-        res = await self.ses.get(login_url)
-        open("http.log", "a", encoding="utf-8").write(f"{res.text}\n")
+        res = await self.http(login_url)
         if res.status_code != 200:
             return False
+        error = res.json().get("error")
+        if error is not None:
+            if "Expires data" in error:
+                self.log(f"this account need new query data !")
+                return False
         data = res.json().get("userData")
         usdt = int(data.get("balance")) / 1000000
         usdc = int(data.get("balanceGold")) / 1000000
@@ -51,8 +83,7 @@ class Tethertod:
             if click > re_click:
                 click = re_click
             click_url = f"https://tap-tether.org/server/clicks?clicks={click}&lastClickTime={round(time.time())}"
-            res = await self.ses.get(click_url)
-            open("http.log", "a", encoding="utf-8").write(f"{res.text}\n")
+            res = await self.http(click_url)
             if res.status_code != 200:
                 return False
             self.log(f"success sending tap : {click}")
@@ -81,6 +112,9 @@ async def main():
     click_max = config["click_range"]["max"]
     interval = config["interval_click"]
     _countdown = config["countdown"]
+    arg = argparse.ArgumentParser()
+    arg.add_argument("--data", default="data.txt")
+    args = arg.parse_args()
     os.system("cls" if os.name == "nt" else "clear")
     print(
         """
@@ -89,7 +123,9 @@ async def main():
     By: @AkasakaID
           """
     )
-    datas = open("data.txt").read().splitlines()
+    datas = open(args.data).read().splitlines()
+    datas = [i for i in datas if len(i) > 0]
+
     print(f"total account : {len(datas)}")
     while True:
         tasks = [
